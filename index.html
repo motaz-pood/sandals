@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>متجر البورجي للأحذية الراقية</title>
+    
+    <!-- الخطوط -->
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React & Babel CDNs -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        body {
+            font-family: 'Cairo', sans-serif;
+            background-color: #ffffff;
+            color: #1a1a1a;
+        }
+        .gold-gradient {
+            background: linear-gradient(135deg, #D4AF37 0%, #F9E498 50%, #AA8A2E 100%);
+        }
+        .gold-text-gradient {
+            background: linear-gradient(135deg, #D4AF37 0%, #AA8A2E 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .selection-gold::selection {
+            background-color: rgba(212, 175, 55, 0.3);
+        }
+        /* أنيميشن بسيط بديل لـ Framer Motion لضمان عمل الملف الواحد */
+        .fade-in {
+            animation: fadeIn 0.8s ease-out forwards;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .cart-sidebar {
+            transition: transform 0.3s ease-in-out;
+        }
+        .cart-open {
+            transform: translateX(0) !important;
+        }
+    </style>
+
+    <script>
+        // إعداد Tailwind
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        gold: '#D4AF37',
+                        'gold-dark': '#AA8A2E',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="selection-gold">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        // --- الأيقونات كمكونات بسيطة ---
+        const Icon = ({ name, className }) => {
+            useEffect(() => {
+                lucide.createIcons();
+            }, [name]);
+            return <i data-lucide={name} className={className}></i>;
+        };
+
+        // --- البيانات ---
+        const FIXED_PRICE = 1500;
+        const WHATSAPP_NUMBER = "+967734229097";
+
+        const PRODUCTS = [
+            { id: 1, name: "صندل TWIK البني الفاخر", image: "./file_000000007604720a91467b4b3c7dbd22.png", price: FIXED_PRICE },
+            { id: 2, name: "صندل TWIK العصري", image: "./1772641723619.png", price: FIXED_PRICE },
+            { id: 3, name: "صندل IWAVE البني الأنيق", image: "./file_0000000062c0724684d40e3701b3a88d.png", price: FIXED_PRICE },
+            { id: 4, name: "صندل IWAVE الكلاسيكي", image: "./1772637130186.png", price: FIXED_PRICE },
+            { id: 5, name: "صندل WAVE الأسود الفخم", image: "./1772641477765.png", price: FIXED_PRICE },
+            { id: 6, name: "صندل IWAVE الأسود المريح", image: "./1772590382639.png", price: FIXED_PRICE },
+            { id: 7, name: "صندل البورجي الملكي", image: "./1772590225469.png", price: FIXED_PRICE }
+        ];
+
+        function App() {
+            const [cart, setCart] = useState([]);
+            const [isCartOpen, setIsCartOpen] = useState(false);
+            const [showSuccess, setShowSuccess] = useState(false);
+
+            const addToCart = (product) => {
+                setCart(prev => {
+                    const existing = prev.find(item => item.id === product.id);
+                    if (existing) {
+                        return prev.map(item => 
+                            item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+                        );
+                    }
+                    return [...prev, { ...product, quantity: 1 }];
+                });
+                setShowSuccess(true);
+                setTimeout(() => setShowSuccess(false), 2000);
+            };
+
+            const removeFromCart = (id) => {
+                setCart(prev => prev.filter(item => item.id !== id));
+            };
+
+            const updateQuantity = (id, delta) => {
+                setCart(prev => prev.map(item => {
+                    if (item.id === id) {
+                        const newQty = Math.max(1, item.quantity + delta);
+                        return { ...item, quantity: newQty };
+                    }
+                    return item;
+                }));
+            };
+
+            const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
+
+            const handleConfirmOrder = () => {
+                if (cart.length === 0) return;
+                const itemsList = cart.map(item => `${item.name} (العدد: ${item.quantity})`).join('\n');
+                const message = `مرحباً متجر البورجي، أريد طلب الصنادل التالية:\n${itemsList}\n| العدد الكلي: ${totalItems} | الإجمالي: ${cartTotal} ريال`;
+                const encodedMessage = encodeURIComponent(message);
+                window.open(`https://wa.me/${WHATSAPP_NUMBER.replace('+', '')}?text=${encodedMessage}`, '_blank');
+            };
+
+            return (
+                <div className="min-h-screen">
+                    {/* Header */}
+                    <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-black/5">
+                        <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <div className="w-10 h-10 gold-gradient rounded-full flex items-center justify-center shadow-lg">
+                                    <span className="text-white font-bold text-xl">B</span>
+                                </div>
+                                <h1 className="text-xl md:text-2xl font-bold tracking-tight">
+                                    متجر <span className="gold-text-gradient">البورجي</span>
+                                </h1>
+                            </div>
+                            <button onClick={() => setIsCartOpen(true)} className="relative p-2 hover:bg-black/5 rounded-full">
+                                <Icon name="shopping-cart" className="w-6 h-6" />
+                                {totalItems > 0 && (
+                                    <span className="absolute -top-1 -right-1 bg-gold text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full shadow-md">
+                                        {totalItems}
+                                    </span>
+                                )}
+                            </button>
+                        </div>
+                    </header>
+
+                    {/* Hero */}
+                    <section className="relative h-[50vh] flex items-center justify-center overflow-hidden bg-black">
+                        <img src="https://picsum.photos/seed/luxury/1920/1080" className="absolute inset-0 w-full h-full object-cover opacity-60" />
+                        <div className="relative z-10 text-center px-4 fade-in">
+                            <h2 className="text-white text-4xl md:text-6xl font-bold mb-4">أناقة بلا مساومة</h2>
+                            <p className="text-gold text-lg md:text-xl font-light mb-8">التجسيد الحقيقي للفخامة والراحة في كل خطوة</p>
+                            <a href="#products" className="inline-block gold-gradient text-white px-10 py-3 rounded-full font-semibold shadow-xl">تسوق الآن</a>
+                        </div>
+                    </section>
+
+                    {/* Products */}
+                    <main id="products" className="max-w-7xl mx-auto px-4 py-20">
+                        <div className="mb-12">
+                            <h3 className="text-3xl font-bold mb-2">تشكيلتنا المختارة</h3>
+                            <div className="h-1 w-20 gold-gradient rounded-full"></div>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+                            {PRODUCTS.map(product => (
+                                <div key={product.id} className="group bg-white border border-black/5 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all fade-in">
+                                    <div className="aspect-[3/4] overflow-hidden relative">
+                                        <img src={product.image} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                                    </div>
+                                    <div className="p-6">
+                                        <h4 className="font-bold text-lg mb-2 group-hover:text-gold transition-colors">{product.name}</h4>
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xl font-bold gold-text-gradient">{product.price} ريال</span>
+                                            <button onClick={() => addToCart(product)} className="p-3 bg-black text-white rounded-xl hover:bg-gold transition-colors">
+                                                <Icon name="plus" className="w-5 h-5" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </main>
+
+                    {/* Footer */}
+                    <footer className="bg-black text-white py-12 text-center">
+                        <p className="text-gold font-bold mb-4">متجر البورجي للأحذية الراقية</p>
+                        <p className="text-gray-500 text-sm">جميع الحقوق محفوظة © 2026</p>
+                    </footer>
+
+                    {/* Cart Sidebar */}
+                    <div className={`fixed inset-0 bg-black/60 backdrop-blur-sm z-50 transition-opacity ${isCartOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} onClick={() => setIsCartOpen(false)}></div>
+                    <div className={`fixed top-0 right-0 h-full w-full max-w-md bg-white z-50 shadow-2xl flex flex-col cart-sidebar ${isCartOpen ? 'cart-open' : 'translate-x-full'}`}>
+                        <div className="p-6 border-b flex items-center justify-between">
+                            <h2 className="text-xl font-bold flex items-center gap-2"><Icon name="shopping-cart" className="text-gold" /> سلة المشتريات</h2>
+                            <button onClick={() => setIsCartOpen(false)}><Icon name="x" className="w-6 h-6" /></button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-6">
+                            {cart.length === 0 ? <p className="text-center text-gray-500 mt-20">سلتك فارغة</p> : (
+                                <div className="space-y-6">
+                                    {cart.map(item => (
+                                        <div key={item.id} className="flex gap-4">
+                                            <img src={item.image} className="w-20 h-24 rounded-xl object-cover" />
+                                            <div className="flex-1">
+                                                <div className="flex justify-between">
+                                                    <h5 className="font-bold text-sm">{item.name}</h5>
+                                                    <button onClick={() => removeFromCart(item.id)} className="text-gray-400 hover:text-red-500"><Icon name="trash-2" className="w-4 h-4" /></button>
+                                                </div>
+                                                <p className="text-gold font-bold">{item.price} ريال</p>
+                                                <div className="flex items-center gap-3 mt-2">
+                                                    <button onClick={() => updateQuantity(item.id, -1)} className="w-8 h-8 border rounded flex items-center justify-center"><Icon name="minus" className="w-3 h-3" /></button>
+                                                    <span className="font-bold">{item.quantity}</span>
+                                                    <button onClick={() => updateQuantity(item.id, 1)} className="w-8 h-8 border rounded flex items-center justify-center"><Icon name="plus" className="w-3 h-3" /></button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                        {cart.length > 0 && (
+                            <div className="p-6 bg-stone-50 border-t">
+                                <div className="flex justify-between mb-6">
+                                    <span className="text-gray-500">الإجمالي</span>
+                                    <span className="text-2xl font-bold gold-text-gradient">{cartTotal} ريال</span>
+                                </div>
+                                <button onClick={handleConfirmOrder} className="w-full gold-gradient text-white py-4 rounded-2xl font-bold shadow-lg flex items-center justify-center gap-3">
+                                    تأكيد الطلب عبر واتساب <Icon name="phone" className="w-5 h-5" />
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Toast */}
+                    {showSuccess && (
+                        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[60] bg-black text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 fade-in">
+                            <Icon name="check-circle-2" className="text-gold" />
+                            <span className="text-sm font-bold">تمت الإضافة للسلة</span>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
