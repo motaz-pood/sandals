@@ -1,18 +1,24 @@
 {
   "name": "adel-alfaqih-accounting",
-  "private": true,
+  "productName": "نظام عادل الفقيه للمحاسبة والمبيعات",
   "version": "1.0.0",
+  "private": true,
   "type": "module",
+  "main": "desktop/main.cjs",
   "scripts": {
     "dev": "tsx server.ts & vite --host 0.0.0.0 --port 3000",
     "api": "tsx server.ts",
     "build": "vite build",
+    "build:desktop": "npm run build && node scripts/build-desktop.mjs",
+    "desktop": "npm run build:desktop && electron .",
+    "pack:windows": "npm run build:desktop && electron-builder --win portable && node scripts/stage-portable.mjs",
     "preview": "vite preview --host 0.0.0.0",
     "start": "npm run build && NODE_ENV=production tsx server.ts",
     "lint": "tsc --noEmit",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist desktop/server.mjs release"
   },
   "dependencies": {
+    "@fontsource/cairo": "^5.3.0",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
     "express": "^4.21.2",
@@ -24,9 +30,36 @@
   "devDependencies": {
     "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
+    "archiver": "^8.0.0",
     "autoprefixer": "^10.4.21",
+    "electron": "^45.4.1",
+    "electron-builder": "^26.18.0",
+    "esbuild": "^0.25.12",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2"
+  },
+  "build": {
+    "appId": "com.motaz.alfaqih.accounting",
+    "productName": "عادل الفقيه للمحاسبة والمبيعات",
+    "artifactName": "Adel-Alfaqih-Accounting-${version}.${ext}",
+    "directories": {
+      "buildResources": "assets",
+      "output": "release/electron-builder"
+    },
+    "files": [
+      "dist/**/*",
+      "desktop/**/*",
+      "assets/icon.png",
+      "package.json",
+      "node_modules/**/*"
+    ],
+    "win": {
+      "icon": "assets/icon.ico",
+      "target": [
+        "portable"
+      ]
+    },
+    "npmRebuild": false
   }
 }

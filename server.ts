@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const app = express();
-const port = Number(process.env.API_PORT || 8787);
+const port = process.env.API_PORT === undefined ? 8787 : Number(process.env.API_PORT);
 const here = path.dirname(fileURLToPath(import.meta.url));
 const dbPath = process.env.DB_FILE || path.join(here, 'data', 'adelfaqih.sqlite');
 fs.mkdirSync(path.dirname(dbPath), { recursive: true });
@@ -185,5 +185,10 @@ app.put('/api/users/:id/active', (req: any, res) => {
   res.json({ ok: true });
 });
 
-if (process.env.NODE_ENV === 'production') app.use(express.static(path.join(here, 'dist')));
-app.listen(port, '0.0.0.0', () => console.log(`Adel Alfaqih API listening on ${port}`));
+if (process.env.NODE_ENV === 'production') app.use(express.static(process.env.APP_DIST || path.join(here, 'dist')));
+export const httpServer = app.listen(port, process.env.API_HOST || '127.0.0.1');
+httpServer.on('listening', () => {
+  const address = httpServer.address();
+  console.log(`Adel Alfaqih API listening on ${address && typeof address !== 'string' ? address.port : port}`);
+});
+httpServer.on('close', () => db.close());
