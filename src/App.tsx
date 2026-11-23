@@ -1,463 +1,133 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import {
+  AlertTriangle, ArrowDownLeft, ArrowUpLeft, Boxes, CalendarDays, Check, ChevronDown,
+  CircleDollarSign, CreditCard, Eye, EyeOff, KeyRound, LayoutDashboard, LogOut, Menu,
+  Package, Pencil, Plus, Receipt, Search, Settings, ShoppingCart, Trash2, TrendingUp,
+  Users, Wallet, X,
+} from 'lucide-react';
 
-import { useState, useEffect, useMemo } from 'react';
-import { ShoppingCart, Plus, Minus, X, Phone, Instagram, Facebook, MapPin, Trash2, CheckCircle2 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+type User = { id: number; username: string; name: string; role: string; active: boolean };
+type Product = { id: number; name: string; category: string; sku: string; cost: number; price: number; stock: number };
+type Sale = { id: number; receipt_no: string; customer: string; total: number; payment_method: string; seller?: string; created_at: string; items?: any[] };
+type Dashboard = { products: number; units: number; inventory_cost: number; today_sales: number; today_revenue: number; today_profit: number; month_revenue: number; month_profit: number; low_stock: number; recent: Sale[] };
+type Page = 'overview' | 'products' | 'sales' | 'reports' | 'settings';
+const money = (value: number) => `${Number(value || 0).toLocaleString('ar-YE')} ر.ي`;
+const dateText = (value: string) => new Date(value.replace(' ', 'T') + (value.includes('Z') ? '' : 'Z')).toLocaleDateString('ar-YE', { year: 'numeric', month: 'short', day: 'numeric' });
+const api = async (url: string, token: string, options: RequestInit = {}) => {
+  const response = await fetch(url, { ...options, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...options.headers } });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || 'حدث خطأ غير متوقع');
+  return data;
+};
 
-// --- Types ---
-interface Product {
-  id: number;
-  name: string;
-  image: string;
-  price: number;
-}
-
-interface CartItem extends Product {
-  quantity: number;
-}
-
-// --- Data ---
-// السعر ثابت 1500 كما طلب العميل
-const FIXED_PRICE = 1500;
-
-const PRODUCTS: Product[] = [
-  {
-    id: 1,
-    name: "صندل TWIK البني الفاخر",
-    image: "./file_000000007604720a91467b4b3c7dbd22.png",
-    price: FIXED_PRICE
-  },
-  {
-    id: 2,
-    name: "صندل TWIK العصري",
-    image: "./1772641723619.png",
-    price: FIXED_PRICE
-  },
-  {
-    id: 3,
-    name: "صندل IWAVE البني الأنيق",
-    image: "./file_0000000062c0724684d40e3701b3a88d.png",
-    price: FIXED_PRICE
-  },
-  {
-    id: 4,
-    name: "صندل IWAVE الكلاسيكي",
-    image: "./1772637130186.png",
-    price: FIXED_PRICE
-  },
-  {
-    id: 5,
-    name: "صندل WAVE الأسود الفخم",
-    image: "./1772641477765.png",
-    price: FIXED_PRICE
-  },
-  {
-    id: 6,
-    name: "صندل IWAVE الأسود المريح",
-    image: "./1772590382639.png",
-    price: FIXED_PRICE
-  },
-  {
-    id: 7,
-    name: "صندل البورجي الملكي",
-    image: "./1772590225469.png",
-    price: FIXED_PRICE
-  }
+const navItems: { id: Page; label: string; icon: any }[] = [
+  { id: 'overview', label: 'لوحة المعلومات', icon: LayoutDashboard },
+  { id: 'products', label: 'الأصناف والمخزون', icon: Boxes },
+  { id: 'sales', label: 'المبيعات والفواتير', icon: Receipt },
+  { id: 'reports', label: 'التقارير المالية', icon: TrendingUp },
+  { id: 'settings', label: 'الإعدادات', icon: Settings },
 ];
 
-const WHATSAPP_NUMBER = "+967734229097";
-
 export default function App() {
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [isCartOpen, setIsCartOpen] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
+  const [token, setToken] = useState(localStorage.getItem('alfaqih_token') || '');
+  const [user, setUser] = useState<User | null>(null);
+  const [setup, setSetup] = useState(false);
+  const [authBusy, setAuthBusy] = useState(true);
+  const [authError, setAuthError] = useState('');
+  const [authMode, setAuthMode] = useState<'login' | 'setup'>('login');
+  const [page, setPage] = useState<Page>('overview');
+  const [products, setProducts] = useState<Product[]>([]);
+  const [sales, setSales] = useState<Sale[]>([]);
+  const [dash, setDash] = useState<Dashboard | null>(null);
+  const [users, setUsers] = useState<User[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [toast, setToast] = useState('');
+  const [search, setSearch] = useState('');
+  const [modal, setModal] = useState<'product' | 'user' | 'password' | null>(null);
+  const [editing, setEditing] = useState<Product | null>(null);
+  const [authForm, setAuthForm] = useState({ name: '', username: '', password: '' });
+  const [productForm, setProductForm] = useState({ name: '', category: '', sku: '', cost: '', price: '', stock: '' });
+  const [userForm, setUserForm] = useState({ name: '', username: '', password: '', role: 'staff' });
+  const [passwordForm, setPasswordForm] = useState({ current_password: '', password: '' });
+  const [saleCart, setSaleCart] = useState<Record<number, number>>({});
+  const [customer, setCustomer] = useState('');
+  const [payment, setPayment] = useState('نقداً');
+  const [mobileNav, setMobileNav] = useState(false);
+  const [welcome, setWelcome] = useState(false);
 
-  // --- Logic ---
-  const addToCart = (product: Product) => {
-    setCart(prev => {
-      const existing = prev.find(item => item.id === product.id);
-      if (existing) {
-        return prev.map(item => 
-          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
-        );
-      }
-      return [...prev, { ...product, quantity: 1 }];
-    });
-    setShowSuccess(true);
-    setTimeout(() => setShowSuccess(false), 2000);
+  useEffect(() => { fetch('/api/status').then(r => r.json()).then(d => { setSetup(!d.initialized); if (!d.initialized) setAuthMode('setup'); }).catch(() => setAuthError('تعذر الاتصال بالخادم. شغّل النظام عبر npm run dev.')).finally(() => setAuthBusy(false)); }, []);
+  const notify = (msg: string) => { setToast(msg); window.setTimeout(() => setToast(''), 3000); };
+  const refresh = useCallback(async (activeToken = token) => {
+    const [me, p, s, d] = await Promise.all([
+      api('/api/me', activeToken), api('/api/products', activeToken), api('/api/sales', activeToken), api('/api/dashboard', activeToken),
+    ]);
+    setUser(me); setProducts(p); setSales(s); setDash(d);
+  }, [token]);
+  useEffect(() => {
+    if (token) refresh(token).then(() => setWelcome(true)).catch(() => { localStorage.removeItem('alfaqih_token'); setToken(''); setUser(null); });
+  }, [token, refresh]);
+
+  const authenticate = async (event: FormEvent) => {
+    event.preventDefault(); setAuthBusy(true); setAuthError('');
+    try {
+      const result = await fetch(`/api/auth/${authMode === 'setup' ? 'setup' : 'login'}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(authForm) });
+      const data = await result.json(); if (!result.ok) throw new Error(data.error || 'تعذر تسجيل الدخول');
+      localStorage.setItem('alfaqih_token', data.token); setSetup(false); setAuthMode('login'); setToken(data.token); setUser(data.user);
+    } catch (e: any) { setAuthError(e.message); } finally { setAuthBusy(false); }
   };
+  const logout = async () => { try { await api('/api/auth/logout', token, { method: 'POST' }); } catch { /* expired session */ } localStorage.removeItem('alfaqih_token'); setToken(''); setUser(null); setPage('overview'); };
+  const run = async (action: () => Promise<any>, success?: string) => { setBusy(true); setError(''); try { const result = await action(); await refresh(); if (success) notify(success); return result; } catch (e: any) { setError(e.message); return null; } finally { setBusy(false); } };
 
-  const removeFromCart = (id: number) => {
-    setCart(prev => prev.filter(item => item.id !== id));
+  const openProduct = (item?: Product) => {
+    setEditing(item || null);
+    setProductForm(item ? { name: item.name, category: item.category, sku: item.sku, cost: String(item.cost), price: String(item.price), stock: String(item.stock) } : { name: '', category: '', sku: '', cost: '', price: '', stock: '' });
+    setModal('product'); setError('');
   };
-
-  const updateQuantity = (id: number, delta: number) => {
-    setCart(prev => prev.map(item => {
-      if (item.id === id) {
-        const newQty = Math.max(1, item.quantity + delta);
-        return { ...item, quantity: newQty };
-      }
-      return item;
-    }));
+  const saveProduct = async (e: FormEvent) => {
+    e.preventDefault();
+    const body = { ...productForm, cost: Number(productForm.cost) || 0, price: Number(productForm.price), stock: Number(productForm.stock) || 0 };
+    const result = await run(() => api(editing ? `/api/products/${editing.id}` : '/api/products', token, { method: editing ? 'PUT' : 'POST', body: JSON.stringify(body) }), editing ? 'تم تحديث الصنف' : 'تمت إضافة الصنف بنجاح');
+    if (result) setModal(null);
   };
-
-  const cartTotal = useMemo(() => {
-    return cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  }, [cart]);
-
-  const totalItems = useMemo(() => {
-    return cart.reduce((sum, item) => sum + item.quantity, 0);
-  }, [cart]);
-
-  const handleConfirmOrder = () => {
-    if (cart.length === 0) return;
-
-    const itemsList = cart.map(item => `${item.name} (العدد: ${item.quantity})`).join('\n');
-    const message = `مرحباً متجر البورجي، أريد طلب الصنادل التالية:\n${itemsList}\n| العدد الكلي: ${totalItems} | الإجمالي: ${cartTotal} ريال`;
-    
-    const encodedMessage = encodeURIComponent(message);
-    window.open(`https://wa.me/${WHATSAPP_NUMBER.replace('+', '')}?text=${encodedMessage}`, '_blank');
+  const removeProduct = async (item: Product) => { if (!window.confirm(`هل تريد حذف «${item.name}»؟`)) return; await run(() => api(`/api/products/${item.id}`, token, { method: 'DELETE' }), 'تم حذف الصنف'); };
+  const submitSale = async () => {
+    const items = Object.entries(saleCart).filter(([, q]) => Number(q) > 0).map(([id, quantity]) => ({ product_id: Number(id), quantity: Number(quantity) }));
+    if (!items.length) { setError('اختر صنفاً واحداً على الأقل لإتمام البيع.'); return; }
+    const result = await run(() => api('/api/sales', token, { method: 'POST', body: JSON.stringify({ items, customer: customer || 'عميل نقدي', payment_method: payment }) }), 'تم تسجيل البيع وإصدار الفاتورة');
+    if (result) { setSaleCart({}); setCustomer(''); setPage('sales'); }
   };
+  const saveUser = async (e: FormEvent) => { e.preventDefault(); const result = await run(() => api('/api/users', token, { method: 'POST', body: JSON.stringify(userForm) }), 'تم إنشاء حساب المستخدم'); if (result) { setModal(null); setUserForm({ name: '', username: '', password: '', role: 'staff' }); await loadUsers(); } };
+  const updatePassword = async (e: FormEvent) => { e.preventDefault(); const result = await run(() => api(`/api/users/${user?.id}/password`, token, { method: 'PUT', body: JSON.stringify(passwordForm) }), 'تم تحديث كلمة المرور بنجاح'); if (result) { setModal(null); setPasswordForm({ current_password: '', password: '' }); } };
+  const loadUsers = async () => { try { setUsers(await api('/api/users', token)); } catch (e: any) { setError(e.message); } };
+  useEffect(() => { if (page === 'settings' && token && user?.role === 'admin') loadUsers(); }, [page, token, user?.role]);
+  const filteredProducts = useMemo(() => products.filter(p => `${p.name} ${p.category} ${p.sku}`.toLowerCase().includes(search.toLowerCase())), [products, search]);
+  const filteredSales = useMemo(() => sales.filter(s => `${s.receipt_no} ${s.customer} ${s.seller || ''}`.toLowerCase().includes(search.toLowerCase())), [sales, search]);
+  const cartTotal = products.reduce((n, p) => n + p.price * (saleCart[p.id] || 0), 0);
 
-  return (
-    <div className="min-h-screen font-sans bg-white selection:bg-gold/30">
-      {/* --- Header --- */}
-      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-black/5">
-        <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 gold-gradient rounded-full flex items-center justify-center shadow-lg">
-              <span className="text-white font-bold text-xl">B</span>
-            </div>
-            <h1 className="text-xl md:text-2xl font-bold tracking-tight">
-              متجر <span className="gold-text-gradient">البورجي</span>
-            </h1>
-          </div>
+  if (authBusy && !token) return <div className="auth-screen"><div className="spinner" /></div>;
+  if (!token || !user) return <main className="auth-screen"><div className="auth-card"><div className="brand-mark">ع</div><div className="auth-kicker">نظام الإدارة الذكي</div><h1>عادل الفقيه <span>للتجارة العامة والاستيراد</span></h1><p className="auth-intro">مرحباً بك في نظام المحاسبة والمبيعات. {authMode === 'setup' ? 'أنشئ حساب المدير للبدء، ثم أضف أصناف متجرك.' : 'سجل الدخول لمتابعة أعمالك.'}</p><form onSubmit={authenticate} className="auth-form">{authMode === 'setup' && <label>الاسم الكامل<input required autoFocus value={authForm.name} onChange={e => setAuthForm({ ...authForm, name: e.target.value })} placeholder="مثال: عادل الفقيه" /></label>}<label>اسم المستخدم<input required autoFocus={authMode === 'login'} value={authForm.username} onChange={e => setAuthForm({ ...authForm, username: e.target.value })} placeholder="أدخل اسم المستخدم" /></label><label>كلمة المرور<input required type="password" minLength={6} value={authForm.password} onChange={e => setAuthForm({ ...authForm, password: e.target.value })} placeholder="6 أحرف على الأقل" /></label>{authError && <div className="form-error">{authError}</div>}<button className="btn-primary auth-submit" disabled={authBusy}>{authBusy ? 'يرجى الانتظار…' : authMode === 'setup' ? 'إنشاء حساب المدير' : 'تسجيل الدخول'}<ArrowUpLeft size={18} /></button></form><div className="auth-foot">بياناتك محفوظة بأمان على قاعدة بيانات SQLite</div><div className="auth-credit">تصميم وبرمجة المهندس معتز البورجي</div></div></main>;
 
-          <nav className="hidden md:flex items-center gap-8 text-sm font-medium">
-            <a href="#" className="hover:text-gold transition-colors">الرئيسية</a>
-            <a href="#products" className="hover:text-gold transition-colors">المنتجات</a>
-            <a href="#about" className="hover:text-gold transition-colors">عن المتجر</a>
-          </nav>
+  const title = navItems.find(n => n.id === page)?.label || '';
+  const card = (icon: any, label: string, value: string, hint: string, tone: string, trend?: boolean) => { const Icon = icon; return <div className="stat-card"><div className={`stat-icon ${tone}`}><Icon size={20} /></div><div className="stat-label">{label}</div><div className="stat-value">{value}</div><div className="stat-hint">{trend && <span className="up-tick"><TrendingUp size={13} /></span>}{hint}</div></div>; };
+  const productTable = (rows: Product[], salesPicker = false) => <div className="table-wrap"><table><thead><tr><th>الصنف</th><th>التصنيف / الرمز</th><th>سعر البيع</th><th>سعر التكلفة</th><th>المخزون</th>{salesPicker ? <th>إضافة للفاتورة</th> : <th>الإجراءات</th>}</tr></thead><tbody>{rows.map(p => <tr key={p.id}><td><div className="product-cell"><div className="item-avatar"><Package size={18} /></div><div><b>{p.name}</b><small>{p.sku || `صنف #${p.id}`}</small></div></div></td><td><span>{p.category || '—'}</span>{p.sku && <small className="subline">{p.sku}</small>}</td><td className="strong-cell">{money(p.price)}</td><td>{money(p.cost)}</td><td><span className={`stock-pill ${p.stock <= 5 ? 'stock-low' : ''}`}>{p.stock} {p.stock <= 5 && <AlertTriangle size={13} />}</span></td><td>{salesPicker ? <div className="quantity-control"><button onClick={() => setSaleCart({ ...saleCart, [p.id]: Math.max(0, (saleCart[p.id] || 0) - 1) })}>−</button><span>{saleCart[p.id] || 0}</span><button disabled={(saleCart[p.id] || 0) >= p.stock} onClick={() => setSaleCart({ ...saleCart, [p.id]: (saleCart[p.id] || 0) + 1 })}>+</button></div> : <div className="row-actions"><button title="تعديل" onClick={() => openProduct(p)}><Pencil size={16} /></button><button title="حذف" onClick={() => removeProduct(p)}><Trash2 size={16} /></button></div>}</td></tr>)}</tbody></table>{rows.length === 0 && <EmptyState icon={Package} title="لا توجد أصناف" text="أضف أصنافك مع أسعار البيع والتكلفة وكميات المخزون." action={() => openProduct()} />}</div>;
+  const saleTable = (rows: Sale[]) => <div className="table-wrap"><table><thead><tr><th>رقم الفاتورة</th><th>العميل</th><th>التاريخ</th><th>طريقة الدفع</th><th>البائع</th><th>الإجمالي</th></tr></thead><tbody>{rows.map(s => <tr key={s.id}><td><span className="receipt-id">{s.receipt_no}</span></td><td><b>{s.customer}</b></td><td>{dateText(s.created_at)}</td><td><span className="pay-chip">{s.payment_method}</span></td><td>{s.seller || user.name}</td><td className="strong-cell">{money(s.total)}</td></tr>)}</tbody></table>{rows.length === 0 && <EmptyState icon={Receipt} title="لا توجد فواتير بعد" text="ابدأ أول عملية بيع من زر بيع جديد." action={() => setPage('products')} />}</div>;
 
-          <button 
-            onClick={() => setIsCartOpen(true)}
-            className="relative p-2 hover:bg-black/5 rounded-full transition-colors"
-          >
-            <ShoppingCart className="w-6 h-6" />
-            {totalItems > 0 && (
-              <span className="absolute -top-1 -right-1 bg-gold text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full shadow-md">
-                {totalItems}
-              </span>
-            )}
-          </button>
-        </div>
-      </header>
-
-      {/* --- Hero Section --- */}
-      <section className="relative h-[60vh] flex items-center justify-center overflow-hidden bg-black">
-        <div className="absolute inset-0 opacity-60">
-          <img 
-            src="https://picsum.photos/seed/luxury/1920/1080" 
-            alt="Luxury Background" 
-            className="w-full h-full object-cover"
-            referrerPolicy="no-referrer"
-          />
-        </div>
-        <div className="relative z-10 text-center px-4">
-          <motion.h2 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-white text-4xl md:text-6xl font-bold mb-4"
-          >
-            أناقة بلا مساومة
-          </motion.h2>
-          <motion.p 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="text-gold text-lg md:text-xl font-light mb-8"
-          >
-            التجسيد الحقيقي للفخامة والراحة في كل خطوة
-          </motion.p>
-          <motion.a 
-            href="#products"
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.4 }}
-            className="inline-block gold-gradient text-white px-10 py-3 rounded-full font-semibold shadow-xl hover:scale-105 transition-transform"
-          >
-            تسوق الآن
-          </motion.a>
-        </div>
-      </section>
-
-      {/* --- Products Grid --- */}
-      <main id="products" className="max-w-7xl mx-auto px-4 py-20">
-        <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-4">
-          <div>
-            <h3 className="text-3xl font-bold mb-2">تشكيلتنا المختارة</h3>
-            <div className="h-1 w-20 gold-gradient rounded-full"></div>
-          </div>
-          <p className="text-gray-500 max-w-md">
-            جميع الصنادل في هذه التشكيلة متوفرة بسعر موحد وحصري لفترة محدودة.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-          {PRODUCTS.map((product) => (
-            <motion.div 
-              key={product.id}
-              whileHover={{ y: -10 }}
-              className="group bg-white border border-black/5 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all"
-            >
-              <div className="aspect-[3/4] overflow-hidden relative">
-                <img 
-                  src={product.image} 
-                  alt={product.name}
-                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-                  referrerPolicy="no-referrer"
-                />
-                <div className="absolute top-4 right-4">
-                  <span className="bg-white/90 backdrop-blur-sm text-black text-xs font-bold px-3 py-1 rounded-full shadow-sm">
-                    جديد
-                  </span>
-                </div>
-              </div>
-              <div className="p-6">
-                <h4 className="font-bold text-lg mb-2 group-hover:text-gold transition-colors">
-                  {product.name}
-                </h4>
-                <div className="flex items-center justify-between">
-                  <span className="text-xl font-bold gold-text-gradient">
-                    {product.price} ريال
-                  </span>
-                  <button 
-                    onClick={() => addToCart(product)}
-                    className="p-3 bg-black text-white rounded-xl hover:bg-gold transition-colors shadow-lg"
-                  >
-                    <Plus className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      </main>
-
-      {/* --- About Section --- */}
-      <section id="about" className="bg-stone-50 py-20">
-        <div className="max-w-7xl mx-auto px-4 grid md:grid-cols-2 gap-12 items-center">
-          <div className="relative">
-            <img 
-              src="https://picsum.photos/seed/craft/800/600" 
-              alt="Craftsmanship" 
-              className="rounded-3xl shadow-2xl"
-              referrerPolicy="no-referrer"
-            />
-            <div className="absolute -bottom-6 -left-6 bg-white p-8 rounded-2xl shadow-xl hidden md:block">
-              <p className="text-4xl font-bold gold-text-gradient">10+</p>
-              <p className="text-sm text-gray-500">سنوات من الخبرة</p>
-            </div>
-          </div>
-          <div>
-            <h3 className="text-3xl font-bold mb-6">لماذا متجر البورجي؟</h3>
-            <p className="text-gray-600 leading-relaxed mb-8">
-              نحن في متجر البورجي نؤمن أن الحذاء ليس مجرد قطعة ملابس، بل هو تعبير عن الشخصية والذوق الرفيع. نختار منتجاتنا بعناية فائقة لنضمن لك الجمع بين التصميم العصري والراحة المطلقة التي تدوم طوال اليوم.
-            </p>
-            <ul className="space-y-4">
-              {[
-                "جلود فاخرة عالية الجودة",
-                "تصاميم مريحة للقدمين",
-                "أسعار تنافسية وموحدة",
-                "خدمة عملاء متميزة"
-              ].map((item, i) => (
-                <li key={i} className="flex items-center gap-3">
-                  <div className="w-6 h-6 rounded-full bg-gold/10 flex items-center justify-center">
-                    <CheckCircle2 className="w-4 h-4 text-gold" />
-                  </div>
-                  <span className="font-medium">{item}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      </section>
-
-      {/* --- Footer --- */}
-      <footer className="bg-black text-white py-16">
-        <div className="max-w-7xl mx-auto px-4 grid grid-cols-1 md:grid-cols-3 gap-12">
-          <div>
-            <div className="flex items-center gap-2 mb-6">
-              <div className="w-8 h-8 gold-gradient rounded-full flex items-center justify-center">
-                <span className="text-white font-bold text-sm">B</span>
-              </div>
-              <h4 className="text-xl font-bold">متجر <span className="text-gold">البورجي</span></h4>
-            </div>
-            <p className="text-gray-400 text-sm leading-relaxed">
-              وجهتك الأولى للأحذية والصنادل الراقية في اليمن. جودة، أناقة، وسعر لا يقاوم.
-            </p>
-          </div>
-          <div>
-            <h5 className="font-bold mb-6 text-gold">روابط سريعة</h5>
-            <ul className="space-y-3 text-sm text-gray-400">
-              <li><a href="#" className="hover:text-white transition-colors">الرئيسية</a></li>
-              <li><a href="#products" className="hover:text-white transition-colors">المنتجات</a></li>
-              <li><a href="#about" className="hover:text-white transition-colors">عن المتجر</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">سياسة التوصيل</a></li>
-            </ul>
-          </div>
-          <div>
-            <h5 className="font-bold mb-6 text-gold">تواصل معنا</h5>
-            <ul className="space-y-4 text-sm text-gray-400">
-              <li className="flex items-center gap-3">
-                <Phone className="w-4 h-4 text-gold" />
-                <span>{WHATSAPP_NUMBER}</span>
-              </li>
-              <li className="flex items-center gap-3">
-                <MapPin className="w-4 h-4 text-gold" />
-                <span>اليمن - صنعاء</span>
-              </li>
-              <li className="flex gap-4 pt-4">
-                <a href="#" className="p-2 bg-white/5 rounded-full hover:bg-gold transition-colors">
-                  <Instagram className="w-4 h-4" />
-                </a>
-                <a href="#" className="p-2 bg-white/5 rounded-full hover:bg-gold transition-colors">
-                  <Facebook className="w-4 h-4" />
-                </a>
-              </li>
-            </ul>
-          </div>
-        </div>
-        <div className="max-w-7xl mx-auto px-4 mt-16 pt-8 border-t border-white/10 text-center text-xs text-gray-500">
-          جميع الحقوق محفوظة © {new Date().getFullYear()} متجر البورجي للأحذية الراقية
-        </div>
-      </footer>
-
-      {/* --- Cart Sidebar --- */}
-      <AnimatePresence>
-        {isCartOpen && (
-          <>
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsCartOpen(false)}
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
-            />
-            <motion.div 
-              initial={{ x: '100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed top-0 right-0 h-full w-full max-w-md bg-white z-50 shadow-2xl flex flex-col"
-            >
-              <div className="p-6 border-b flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <ShoppingCart className="w-5 h-5 text-gold" />
-                  <h2 className="text-xl font-bold">سلة المشتريات</h2>
-                </div>
-                <button 
-                  onClick={() => setIsCartOpen(false)}
-                  className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-6">
-                {cart.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-center">
-                    <div className="w-20 h-20 bg-stone-100 rounded-full flex items-center justify-center mb-4">
-                      <ShoppingCart className="w-10 h-10 text-stone-300" />
-                    </div>
-                    <p className="text-gray-500">سلتك فارغة حالياً</p>
-                    <button 
-                      onClick={() => setIsCartOpen(false)}
-                      className="mt-4 text-gold font-bold hover:underline"
-                    >
-                      ابدأ التسوق الآن
-                    </button>
-                  </div>
-                ) : (
-                  <div className="space-y-6">
-                    {cart.map((item) => (
-                      <div key={item.id} className="flex gap-4 group">
-                        <div className="w-20 h-24 rounded-xl overflow-hidden bg-stone-100 flex-shrink-0">
-                          <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex justify-between mb-1">
-                            <h5 className="font-bold text-sm">{item.name}</h5>
-                            <button 
-                              onClick={() => removeFromCart(item.id)}
-                              className="text-gray-400 hover:text-red-500 transition-colors"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                          <p className="text-gold text-sm font-bold mb-3">{item.price} ريال</p>
-                          <div className="flex items-center gap-3">
-                            <button 
-                              onClick={() => updateQuantity(item.id, -1)}
-                              className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50"
-                            >
-                              <Minus className="w-3 h-3" />
-                            </button>
-                            <span className="font-bold text-sm w-4 text-center">{item.quantity}</span>
-                            <button 
-                              onClick={() => updateQuantity(item.id, 1)}
-                              className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50"
-                            >
-                              <Plus className="w-3 h-3" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {cart.length > 0 && (
-                <div className="p-6 bg-stone-50 border-t">
-                  <div className="flex justify-between mb-6">
-                    <span className="text-gray-500">الإجمالي الكلي</span>
-                    <span className="text-2xl font-bold gold-text-gradient">{cartTotal} ريال</span>
-                  </div>
-                  <button 
-                    onClick={handleConfirmOrder}
-                    className="w-full gold-gradient text-white py-4 rounded-2xl font-bold shadow-lg flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-[0.98] transition-all"
-                  >
-                    تأكيد الطلب عبر واتساب
-                    <Phone className="w-5 h-5" />
-                  </button>
-                  <p className="text-center text-[10px] text-gray-400 mt-4">
-                    سيتم توجيهك إلى واتساب لإرسال تفاصيل الطلب مباشرة
-                  </p>
-                </div>
-              )}
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-
-      {/* --- Success Toast --- */}
-      <AnimatePresence>
-        {showSuccess && (
-          <motion.div 
-            initial={{ opacity: 0, y: 50 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 50 }}
-            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[60] bg-black text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3"
-          >
-            <CheckCircle2 className="w-5 h-5 text-gold" />
-            <span className="text-sm font-bold">تمت الإضافة للسلة بنجاح</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
+  return <div className="app-shell" dir="rtl">
+    <aside className={`sidebar ${mobileNav ? 'sidebar-open' : ''}`}><div className="sidebar-brand"><div className="brand-mark small">ع</div><div><b>عادل الفقيه</b><span>للتجارة العامة والاستيراد</span></div><button className="mobile-close" onClick={() => setMobileNav(false)}><X size={19} /></button></div><div className="side-label">القائمة الرئيسية</div><nav>{navItems.map(item => { const Icon = item.icon; return <button key={item.id} className={`nav-link ${page === item.id ? 'active' : ''}`} onClick={() => { setPage(item.id); setMobileNav(false); setError(''); }}><Icon size={19} /><span>{item.label}</span>{item.id === 'products' && dash?.low_stock ? <span className="nav-badge">{dash.low_stock}</span> : null}</button>; })}</nav><div className="sidebar-spacer" /><div className="side-tip"><div className="tip-icon"><Wallet size={17} /></div><b>إدارة متجرك بسهولة</b><p>تابع مخزونك ومبيعاتك في مكان واحد.</p></div><div className="profile-box"><div className="profile-avatar">{user.name.slice(0, 1)}</div><div className="profile-info"><b>{user.name}</b><small>{user.role === 'admin' ? 'مدير النظام' : 'موظف'}</small></div><button title="تسجيل الخروج" onClick={logout}><LogOut size={17} /></button></div></aside>
+    {mobileNav && <button className="nav-scrim" onClick={() => setMobileNav(false)} aria-label="إغلاق القائمة" />}
+    <main className="main-area"><header className="topbar"><div className="top-left"><button className="menu-toggle" onClick={() => setMobileNav(true)}><Menu /></button><div><div className="breadcrumb">الرئيسية <span>/</span> <b>{title}</b></div><h1>{title}</h1></div></div><div className="top-actions"><div className="today-date"><CalendarDays size={16} />{new Date().toLocaleDateString('ar-YE', { weekday: 'long', day: 'numeric', month: 'long' })}</div><div className="top-user"><div className="profile-avatar mini">{user.name.slice(0, 1)}</div><span>{user.name}</span><ChevronDown size={15} /></div></div></header>
+      <section className="page-content">{error && <div className="inline-error"><AlertTriangle size={17} />{error}<button onClick={() => setError('')}><X size={16} /></button></div>}
+        {page === 'overview' && <><div className="welcome-banner"><div><div className="welcome-chip"><span className="live-dot" /> نظرة عامة على المتجر</div><h2>أهلاً وسهلاً، {user.name.split(' ')[0]} 👋</h2><p>هذه لمحة سريعة عن أداء متجرك اليوم. نتمنى لك يوماً مليئاً بالمبيعات.</p></div><div className="banner-art"><div className="banner-circle circle-one"/><div className="banner-circle circle-two"/><div className="banner-illustration"><ShoppingCart size={42} /></div><div className="banner-spark spark-one">✦</div><div className="banner-spark spark-two">✧</div></div></div><div className="stats-grid">{card(CircleDollarSign, 'مبيعات اليوم', money(dash?.today_revenue || 0), `${dash?.today_sales || 0} فاتورة اليوم`, 'blue', true)}{card(TrendingUp, 'الربح الإجمالي هذا الشهر', money(dash?.month_profit || 0), `المبيعات ${money(dash?.month_revenue || 0)}`, 'green', true)}{card(Boxes, 'الأصناف المسجلة', String(dash?.products || 0), `${dash?.units || 0} وحدة في المخزون`, 'violet')}{card(AlertTriangle, 'أصناف منخفضة المخزون', String(dash?.low_stock || 0), 'تحتاج إلى إعادة التوريد', 'amber')}</div><div className="overview-grid"><div className="panel recent-panel"><div className="panel-heading"><div><h3>أحدث المبيعات</h3><p>آخر الفواتير التي تم تسجيلها</p></div><button className="text-link" onClick={() => setPage('sales')}>عرض الكل <ArrowDownLeft size={15} /></button></div>{dash?.recent?.length ? saleTable(dash.recent) : <EmptyState icon={Receipt} title="مرحباً بك في نظامك الجديد" text="ابدأ بإضافة أصناف متجرك مع أسعارها، ثم سجّل أول عملية بيع." action={() => { setPage('products'); if (!products.length) openProduct(); }} label="إضافة أول صنف" />}</div><div className="panel quick-panel"><div className="panel-heading"><div><h3>اختصارات سريعة</h3><p>أنجز مهامك اليومية بسهولة</p></div></div><button className="quick-action" onClick={() => { setPage('products'); openProduct(); }}><span className="quick-icon purple"><Plus size={18} /></span><span><b>إضافة صنف جديد</b><small>أدخل الأصناف والأسعار للمخزون</small></span><ArrowUpLeft size={16} /></button><button className="quick-action" onClick={() => setPage('products')}><span className="quick-icon orange"><ShoppingCart size={18} /></span><span><b>تسجيل عملية بيع</b><small>أنشئ فاتورة وحدث المخزون</small></span><ArrowUpLeft size={16} /></button><button className="quick-action" onClick={() => setPage('reports')}><span className="quick-icon teal"><TrendingUp size={18} /></span><span><b>عرض التقارير</b><small>تابع ملخص المبيعات والمخزون</small></span><ArrowUpLeft size={16} /></button><div className="inventory-note"><div className="note-head"><span>قيمة المخزون بالتكلفة</span><Wallet size={16} /></div><b>{money(dash?.inventory_cost || 0)}</b><small>محسوبة من سعر التكلفة × الكمية</small></div></div></div></>}
+        {page === 'products' && <><div className="page-toolbar"><div><h2>الأصناف والمخزون</h2><p>إدارة المنتجات وأسعارها وكمياتها المتاحة.</p></div><button className="btn-primary" onClick={() => openProduct()}><Plus size={18} /> إضافة صنف جديد</button></div><div className="panel table-panel"><div className="table-toolbar"><div className="table-title"><h3>قائمة الأصناف</h3><span>{products.length} صنف</span></div><div className="search-box"><Search size={17} /><input placeholder="ابحث عن صنف أو تصنيف..." value={search} onChange={e => setSearch(e.target.value)} />{search && <button onClick={() => setSearch('')}><X size={14} /></button>}</div></div>{productTable(filteredProducts)}</div><div className="panel sales-panel"><div className="panel-heading"><div><h3>إنشاء فاتورة بيع</h3><p>اختر الأصناف وحدد الكمية لإتمام عملية البيع.</p></div><Receipt size={20} className="muted-icon" /></div>{products.length ? <><div className="sale-fields"><label>اسم العميل (اختياري)<input value={customer} onChange={e => setCustomer(e.target.value)} placeholder="عميل نقدي" /></label><label>طريقة الدفع<select value={payment} onChange={e => setPayment(e.target.value)}><option>نقداً</option><option>تحويل بنكي</option><option>آجل</option></select></label></div>{productTable(products, true)}<div className="checkout-bar"><div><span>إجمالي الفاتورة</span><b>{money(cartTotal)}</b></div><button className="btn-primary" disabled={!Object.values(saleCart).some(Boolean) || busy} onClick={submitSale}><Check size={17} />{busy ? 'جارٍ الحفظ…' : 'إتمام البيع'}</button></div></> : <EmptyState icon={Boxes} title="أضف الأصناف للبدء" text="أضف منتجات متجرك وأسعارها وكمياتها، لتتمكن من إصدار الفواتير." action={() => openProduct()} label="إضافة أول صنف" />}</div></>}
+        {page === 'sales' && <><div className="page-toolbar"><div><h2>المبيعات والفواتير</h2><p>سجل المبيعات والفواتير الصادرة من النظام.</p></div><button className="btn-primary" onClick={() => setPage('products')}><Plus size={18} /> تسجيل بيع جديد</button></div><div className="mini-summary"><div><span className="summary-icon blue"><Receipt size={18} /></span><span><small>عدد الفواتير</small><b>{sales.length.toLocaleString('ar-YE')}</b></span></div><div><span className="summary-icon green"><CircleDollarSign size={18} /></span><span><small>إجمالي المبيعات المسجلة</small><b>{money(sales.reduce((sum, s) => sum + Number(s.total), 0))}</b></span></div></div><div className="panel table-panel"><div className="table-toolbar"><div className="table-title"><h3>سجل الفواتير</h3><span>{sales.length} فاتورة</span></div><div className="search-box"><Search size={17} /><input placeholder="ابحث برقم الفاتورة أو العميل..." value={search} onChange={e => setSearch(e.target.value)} /></div></div>{saleTable(filteredSales)}</div></>}
+        {page === 'reports' && <><div className="page-toolbar"><div><h2>التقارير المالية</h2><p>ملخص الإيرادات وحركة المخزون في متجرك.</p></div><div className="report-period"><CalendarDays size={16} /> ملخص شامل</div></div><div className="stats-grid reports-stats">{card(CircleDollarSign, 'إيرادات اليوم', money(dash?.today_revenue || 0), `${dash?.today_sales || 0} فاتورة`, 'blue')}{card(TrendingUp, 'إيرادات الشهر الحالي', money(dash?.month_revenue || 0), 'من بداية الشهر', 'green')}{card(Wallet, 'تكلفة المخزون الحالي', money(dash?.inventory_cost || 0), `${dash?.units || 0} وحدة`, 'violet')}{card(CircleDollarSign, 'الربح الإجمالي هذا الشهر', money(dash?.month_profit || 0), 'المبيعات ناقص تكلفة البضاعة', 'amber')}</div><div className="panel table-panel"><div className="panel-heading report-heading"><div><h3>تفاصيل المبيعات</h3><p>جميع الفواتير المسجلة في النظام</p></div><button className="btn-outline" onClick={() => window.print()}>طباعة التقرير <Receipt size={16} /></button></div>{saleTable(sales)}</div></>}
+        {page === 'settings' && <><div className="page-toolbar"><div><h2>إعدادات النظام</h2><p>إدارة حسابك وكلمات المرور ومستخدمي النظام.</p></div></div><div className="settings-grid"><div className="panel settings-card"><div className="settings-icon"><KeyRound size={21} /></div><div className="settings-copy"><h3>كلمة مرور حسابك</h3><p>غيّر كلمة المرور الخاصة بحساب {user.username} بانتظام لحماية بياناتك.</p></div><button className="btn-outline" onClick={() => { setError(''); setModal('password'); }}>تغيير كلمة المرور</button></div><div className="panel settings-card"><div className="settings-icon green-bg"><Users size={21} /></div><div className="settings-copy"><h3>حسابات المستخدمين</h3><p>أضف حسابات منفصلة للموظفين والمديرين، مع كلمة مرور خاصة لكل مستخدم.</p></div>{user.role === 'admin' && <button className="btn-primary" onClick={() => { setError(''); setModal('user'); }}> <Plus size={17} /> إنشاء حساب</button>}</div>{user.role === 'admin' && <div className="panel user-list-panel"><div className="panel-heading"><div><h3>المستخدمون المسجلون</h3><p>إدارة صلاحيات الوصول إلى النظام</p></div><span className="user-count">{users.length} مستخدم</span></div><div className="user-list">{users.map(u => <div className="user-row" key={u.id}><div className="profile-avatar">{u.name.slice(0, 1)}</div><div className="user-row-main"><b>{u.name} {u.id === user.id && <small className="you-label">أنت</small>}</b><span>{u.username} · {u.role === 'admin' ? 'مدير النظام' : 'موظف'}</span></div><span className={`active-status ${u.active ? '' : 'inactive'}`}><i />{u.active ? 'نشط' : 'موقوف'}</span>{u.id !== user.id && <button className="user-switch" onClick={async () => { await run(() => api(`/api/users/${u.id}/active`, token, { method: 'PUT', body: JSON.stringify({ active: !u.active }) }), u.active ? 'تم إيقاف الحساب' : 'تم تفعيل الحساب'); loadUsers(); }}>{u.active ? 'إيقاف' : 'تفعيل'}</button>}</div>)}</div></div>}<div className="panel about-system"><div className="brand-mark small">ع</div><div><b>عادل الفقيه للتجارة العامة والاستيراد</b><p>نظام محاسبة ومبيعات متكامل يعمل بقاعدة بيانات SQLite محلية.</p><small>تصميم وبرمجة المهندس معتز البورجي</small></div><span className="version-chip">الإصدار 1.0</span></div></div></>}
+      </section><footer className="app-footer">جميع الحقوق محفوظة © {new Date().getFullYear()} عادل الفقيه للتجارة العامة والاستيراد <span>تصميم وبرمجة المهندس معتز البورجي</span></footer>
+    </main>
+    {welcome && <div className="welcome-toast"><span className="welcome-check"><Check size={16} /></span><span><b>مرحباً بك في نظام عادل الفقيه</b><small>{products.length ? 'نتمنى لك إدارة ناجحة ومبيعات مزدهرة.' : 'ابدأ بإضافة أصنافك مع أسعارها للانطلاق.'}</small></span><button onClick={() => setWelcome(false)}><X size={16} /></button></div>}
+    {modal && <div className="modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setModal(null); }}><div className="modal-card"><div className="modal-head"><div><div className="modal-eyebrow">{modal === 'product' ? 'المخزون والمنتجات' : modal === 'user' ? 'إدارة المستخدمين' : 'أمان الحساب'}</div><h3>{modal === 'product' ? editing ? 'تعديل بيانات الصنف' : 'إضافة صنف جديد' : modal === 'user' ? 'إنشاء حساب مستخدم' : 'تغيير كلمة المرور'}</h3></div><button className="close-modal" onClick={() => setModal(null)}><X size={19} /></button></div>{modal === 'product' && <form onSubmit={saveProduct} className="modal-form"><label>اسم الصنف *<input required autoFocus value={productForm.name} onChange={e => setProductForm({ ...productForm, name: e.target.value })} placeholder="مثال: طقم أواني ستانلس" /></label><div className="form-row"><label>التصنيف<input value={productForm.category} onChange={e => setProductForm({ ...productForm, category: e.target.value })} placeholder="أدوات مطبخ" /></label><label>رمز الصنف / SKU<input value={productForm.sku} onChange={e => setProductForm({ ...productForm, sku: e.target.value })} placeholder="اختياري" /></label></div><div className="form-row"><label>سعر التكلفة<input type="number" min="0" step="0.01" value={productForm.cost} onChange={e => setProductForm({ ...productForm, cost: e.target.value })} placeholder="0" /></label><label>سعر البيع *<input required type="number" min="0" step="0.01" value={productForm.price} onChange={e => setProductForm({ ...productForm, price: e.target.value })} placeholder="0" /></label></div><label>الكمية المتوفرة في المخزون *<input required type="number" min="0" step="1" value={productForm.stock} onChange={e => setProductForm({ ...productForm, stock: e.target.value })} placeholder="0" /></label>{error && <div className="form-error">{error}</div>}<div className="modal-actions"><button type="button" className="btn-outline" onClick={() => setModal(null)}>إلغاء</button><button className="btn-primary" disabled={busy}>{busy ? 'جارٍ الحفظ…' : <><Check size={17} />{editing ? 'حفظ التغييرات' : 'حفظ الصنف'}</>}</button></div></form>}{modal === 'user' && <form onSubmit={saveUser} className="modal-form"><div className="form-row"><label>الاسم الكامل *<input required autoFocus value={userForm.name} onChange={e => setUserForm({ ...userForm, name: e.target.value })} placeholder="اسم الموظف" /></label><label>اسم المستخدم *<input required value={userForm.username} onChange={e => setUserForm({ ...userForm, username: e.target.value })} placeholder="مثال: ahmed" /></label></div><label>كلمة المرور *<input required minLength={6} type="password" value={userForm.password} onChange={e => setUserForm({ ...userForm, password: e.target.value })} placeholder="6 أحرف على الأقل" /></label><label>الصلاحية<select value={userForm.role} onChange={e => setUserForm({ ...userForm, role: e.target.value })}><option value="staff">موظف — إدارة الأصناف والمبيعات</option><option value="admin">مدير — كافة الصلاحيات والإعدادات</option></select></label>{error && <div className="form-error">{error}</div>}<div className="modal-actions"><button type="button" className="btn-outline" onClick={() => setModal(null)}>إلغاء</button><button className="btn-primary" disabled={busy}><Plus size={17} />إنشاء الحساب</button></div></form>}{modal === 'password' && <form onSubmit={updatePassword} className="modal-form"><label>كلمة المرور الحالية<input required type="password" autoFocus value={passwordForm.current_password} onChange={e => setPasswordForm({ ...passwordForm, current_password: e.target.value })} /></label><label>كلمة المرور الجديدة<input required minLength={6} type="password" value={passwordForm.password} onChange={e => setPasswordForm({ ...passwordForm, password: e.target.value })} placeholder="6 أحرف على الأقل" /></label>{error && <div className="form-error">{error}</div>}<div className="modal-actions"><button type="button" className="btn-outline" onClick={() => setModal(null)}>إلغاء</button><button className="btn-primary" disabled={busy}><KeyRound size={17} />حفظ كلمة المرور</button></div></form>}</div></div>}
+    {toast && <div className="app-toast"><span><Check size={15} /></span>{toast}</div>}
+  </div>;
 }
+function EmptyState({ icon: Icon, title, text, action, label = 'إضافة صنف جديد' }: { icon: any; title: string; text: string; action?: () => void; label?: string }) { return <div className="empty-state"><div className="empty-icon"><Icon size={24} /></div><b>{title}</b><p>{text}</p>{action && <button className="btn-outline" onClick={action}><Plus size={16} />{label}</button>}</div>; }
