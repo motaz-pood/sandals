@@ -1,12 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#243f68"/><stop offset="1" stop-color="#142640"/></linearGradient>
-    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f4d88e"/><stop offset="1" stop-color="#c28b32"/></linearGradient>
-  </defs>
-  <rect x="8" y="8" width="240" height="240" rx="58" fill="url(#bg)"/>
-  <circle cx="194" cy="61" r="24" fill="#ffffff" opacity=".06"/>
-  <path d="M81 99V83a47 47 0 0 1 94 0v16" fill="none" stroke="url(#gold)" stroke-width="14" stroke-linecap="round"/>
-  <path d="M63 101h130l-10 105a17 17 0 0 1-17 15H90a17 17 0 0 1-17-15z" fill="url(#gold)"/>
-  <path d="M105 139v34m46-34v34" stroke="#fff6da" stroke-width="10" stroke-linecap="round" opacity=".9"/>
-  <path d="m42 71 5 12 12 5-12 5-5 12-5-12-12-5 12-5zM205 140l4 9 9 4-9 4-4 9-4-9-9-4 9-4z" fill="#f4d88e"/>
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#243f68"/><stop offset="1" stop-color="#142640"/></linearGradient><linearGradient id="gold" x1=".12" y1="0" x2=".9" y2="1"><stop stop-color="#f4d88e"/><stop offset="1" stop-color="#c28b32"/></linearGradient></defs>
+  <rect x="8" y="8" width="240" height="240" rx="58" fill="url(#bg)"/><circle cx="194" cy="60" r="25" fill="#fff" opacity=".055"/>
+  <g transform="translate(14 0)"><path fill="url(#gold)" d="M128 28c-28 24-58 54-58 84 0 25 16 42 35 57 18 14 40 23 38 41-2 15-17 22-30 12-9-7-6-22 7-31 22-16 37-33 37-53 0-19-13-31-30-30-16 1-27 13-33 28-7-18-5-38 3-56 10-22 25-42 31-52Z"/><path d="M111 205c21-13 33-28 35-49" fill="none" stroke="#fff2cc" stroke-linecap="round" stroke-width="8" opacity=".9"/><circle cx="185" cy="51" r="9" fill="#f4d88e"/></g>
 </svg>

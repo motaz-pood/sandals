@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="شعار عادل الفقيه">
+  <defs><linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f4d88e"/><stop offset="1" stop-color="#c28b32"/></linearGradient></defs>
+  <path fill="url(#gold)" d="M63 8C47 23 30 42 30 59c0 15 9 25 20 34 10 8 23 14 21 23-1 8-11 12-19 6-5-4-3-13 4-18 13-9 23-19 23-31 0-12-8-19-18-18-10 0-16 8-20 17-4-11-3-23 2-34C48 26 57 14 63 8Z"/>
+  <path d="M51 110c12-8 19-17 20-29" fill="none" stroke="#fff2cc" stroke-linecap="round" stroke-width="4" opacity=".9"/>
+  <circle cx="92" cy="25" r="4.5" fill="#f4d88e"/>
+</svg>
