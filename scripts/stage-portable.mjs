@@ -20,7 +20,7 @@ await copyFile('installer-template/adelfaqih.sqlite', path.join(bundleRoot, 'dat
 const iconStats = await stat(path.join(bundleRoot, 'assets/icon.ico'));
 const dbStats = await stat(path.join(bundleRoot, 'data/adelfaqih.sqlite'));
 if (iconStats.size < 10000 || dbStats.size < 10000) throw new Error('Portable icon or SQLite template is unexpectedly empty.');
-await writeFile(path.join(bundleRoot, 'اقرأني.txt'), `نظام عادل الفقيه للمحاسبة والمبيعات — تشغيل دون إنترنت\n\n1. شغّل Adel-Alfaqih-Accounting.exe على Windows 10 أو Windows 11 (64-bit).\n2. أنشئ حساب المدير عند أول تشغيل.\n3. قاعدة البيانات المحلية موجودة في مجلد data\\adelfaqih.sqlite؛ احتفظ بنسخة احتياطية منها.\n4. يجب أن يبقى مجلد data بجانب ملف exe. يعمل النظام محلياً على هذا الجهاز ولا يحتاج متصفحاً أو اتصالاً بالإنترنت.\n\nالأيقونة: assets\\icon.ico و assets\\icon.png\nتصميم وبرمجة المهندس معتز البورجي\n`, 'utf8');
+await writeFile(path.join(bundleRoot, 'README.txt'), `نظام عادل الفقيه للمحاسبة والمبيعات — تشغيل دون إنترنت\n\n1. شغّل Adel-Alfaqih-Accounting.exe على Windows 10 أو Windows 11 (64-bit).\n2. أنشئ حساب المدير عند أول تشغيل.\n3. قاعدة البيانات المحلية موجودة في مجلد data\\adelfaqih.sqlite؛ احتفظ بنسخة احتياطية منها.\n4. يجب أن يبقى مجلد data بجانب ملف exe. يعمل النظام محلياً على هذا الجهاز ولا يحتاج متصفحاً أو اتصالاً بالإنترنت.\n\nالأيقونة: assets\\icon.ico و assets\\icon.png\nتصميم وبرمجة المهندس معتز البورجي\n`, 'utf8');
 const verification = await exec(process.execPath, ['scripts/verify-portable.mjs', bundleRoot]);
 console.log(verification.stdout.trim());
 
