@@ -1,0 +1,40 @@
+name: Build offline Windows app
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - arena/4d0a49b8-sandals
+    paths:
+      - 'src/**'
+      - 'desktop/**'
+      - 'scripts/**'
+      - 'assets/**'
+      - 'installer-template/**'
+      - 'server.ts'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vite.config.ts'
+      - '.github/workflows/build-offline-windows.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run pack:windows
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Adel-Alfaqih-Offline-Windows
+          path: release/Adel-Alfaqih-Offline/
+          if-no-files-found: error
+          retention-days: 90
