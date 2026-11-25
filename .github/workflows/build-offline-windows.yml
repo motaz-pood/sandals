@@ -38,3 +38,8 @@ jobs:
           path: release/Adel-Alfaqih-Offline/
           if-no-files-found: error
           retention-days: 90
+      - uses: actions/download-artifact@v4
+        with:
+          name: Adel-Alfaqih-Offline-Windows
+          path: release/artifact-roundtrip
+      - run: node scripts/verify-portable.mjs release/artifact-roundtrip

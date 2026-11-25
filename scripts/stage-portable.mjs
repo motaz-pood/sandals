@@ -1,8 +1,11 @@
 import { ZipArchive } from 'archiver';
+import { execFile } from 'node:child_process';
 import { createWriteStream } from 'node:fs';
-import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { promisify } from 'node:util';
+import { copyFile, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+const exec = promisify(execFile);
 const version = JSON.parse(await readFile('package.json', 'utf8')).version;
 const sourceExe = path.resolve(`release/electron-builder/Adel-Alfaqih-Accounting-${version}.exe`);
 const bundleName = 'Adel-Alfaqih-Offline';
@@ -12,8 +15,14 @@ await mkdir(path.join(bundleRoot, 'data'), { recursive: true });
 await mkdir(path.join(bundleRoot, 'assets'), { recursive: true });
 await copyFile(sourceExe, path.join(bundleRoot, 'Adel-Alfaqih-Accounting.exe'));
 await copyFile('assets/icon.ico', path.join(bundleRoot, 'assets/icon.ico'));
+await copyFile('assets/icon.png', path.join(bundleRoot, 'assets/icon.png'));
 await copyFile('installer-template/adelfaqih.sqlite', path.join(bundleRoot, 'data/adelfaqih.sqlite'));
-await writeFile(path.join(bundleRoot, 'اقرأني.txt'), `نظام عادل الفقيه للمحاسبة والمبيعات — تشغيل دون إنترنت\n\n1. شغّل Adel-Alfaqih-Accounting.exe على Windows 10 أو Windows 11 (64-bit).\n2. أنشئ حساب المدير عند أول تشغيل.\n3. قاعدة البيانات المحلية موجودة في مجلد data\\adelfaqih.sqlite؛ احتفظ بنسخة احتياطية منها.\n4. يجب أن يبقى مجلد data بجانب ملف exe. يعمل النظام محلياً على هذا الجهاز ولا يحتاج متصفحاً أو اتصالاً بالإنترنت.\n\nالأيقونة: assets\\icon.ico\nتصميم وبرمجة المهندس معتز البورجي\n`, 'utf8');
+const iconStats = await stat(path.join(bundleRoot, 'assets/icon.ico'));
+const dbStats = await stat(path.join(bundleRoot, 'data/adelfaqih.sqlite'));
+if (iconStats.size < 10000 || dbStats.size < 10000) throw new Error('Portable icon or SQLite template is unexpectedly empty.');
+await writeFile(path.join(bundleRoot, 'اقرأني.txt'), `نظام عادل الفقيه للمحاسبة والمبيعات — تشغيل دون إنترنت\n\n1. شغّل Adel-Alfaqih-Accounting.exe على Windows 10 أو Windows 11 (64-bit).\n2. أنشئ حساب المدير عند أول تشغيل.\n3. قاعدة البيانات المحلية موجودة في مجلد data\\adelfaqih.sqlite؛ احتفظ بنسخة احتياطية منها.\n4. يجب أن يبقى مجلد data بجانب ملف exe. يعمل النظام محلياً على هذا الجهاز ولا يحتاج متصفحاً أو اتصالاً بالإنترنت.\n\nالأيقونة: assets\\icon.ico و assets\\icon.png\nتصميم وبرمجة المهندس معتز البورجي\n`, 'utf8');
+const verification = await exec(process.execPath, ['scripts/verify-portable.mjs', bundleRoot]);
+console.log(verification.stdout.trim());
 
 const archivePath = path.resolve(`release/${bundleName}-Windows.zip`);
 await rm(archivePath, { force: true });
